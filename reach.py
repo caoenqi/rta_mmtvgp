@@ -10,7 +10,7 @@ from matplotlib.patches import Ellipse
 @jax.jit
 def norm_P (x:jax.Array, P:jax.Array) -> float :
     """Returns :math:`\|x\|_{2,P^{1/2}} = x^T P x`"""
-    return x.T @ P @ x
+    return jnp.sqrt(x.T @ P @ x)
 
 @register_pytree_node_class
 class Ellipsoid :
@@ -81,7 +81,7 @@ def eover (ix:irx.Interval, P:jax.Array) -> Ellipsoid :
     xc, xp = irx.i2centpert(ix)
     corns = irx.get_corners(ix - xc)
     m = jnp.max(jnp.array([norm_P(c, P) for c in corns]))
-    return Ellipsoid(P/m, xc)
+    return Ellipsoid(P/(m**2), xc)
 
 def reach_P_contraction (rollout, e0:Ellipsoid, N:int, dt:float) :
     """
