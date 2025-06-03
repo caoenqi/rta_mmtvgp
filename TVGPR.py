@@ -3,15 +3,18 @@ import jax.numpy as jnp
 from functools import partial
 
 class TVGPR():
-    def __init__(self, obs : jax.Array, obs_dim : int = 0, sigma_f : float = 3.0, l : float = 1.0, sigma_n : float = 0.0001, epsilon : float = 0.1) -> None:
+    def __init__(self, obs : jax.Array, obs_dim : int = 0, sigma_f : float = 3.0, l : float = 1.0, sigma_n : float = 0.0001, epsilon : float = 0.1, discrete : bool = False) -> None:
 
         if obs_dim == 0:
             self.obs_dim = obs.shape[1] - 1 
         else:
             self.obs_dim = obs_dim
 
-        self.x = obs[:, :self.obs_dim]
+        self.discrete = discrete
+        self.ts = obs[:, 0] # assuming first column is ordered list of times
+        self.x = obs[:, 1:self.obs_dim]
         self.y = obs[:, self.obs_dim:]
+        # print(self.ts)
         # print(self.x)
         # print(self.y)
         self.sigma_f = sigma_f
@@ -48,8 +51,13 @@ class TVGPR():
         self.set_KL()
 
     def set_KL(self):
-        Dt = jax.vmap(lambda i: jnp.power((1-self.epsilon), (jnp.abs(i - (jnp.arange(self.T) + 1))/2)))(jnp.arange(self.T) + 1)
-        # print(Dt)
+        if self.discrete:
+            # discrete time version (each observation is taken at equal timesteps)
+            Dt = jax.vmap(lambda i: jnp.power((1-self.epsilon), (jnp.abs(i - (jnp.arange(self.T) + 1))/2)))(jnp.arange(self.T) + 1)
+        else:
+            # continuous time version (each observation can be taken at any time)
+            Dt = jax.vmap(lambda i: jnp.power((1-self.epsilon), (jnp.abs(i - self.ts)/2)))(self.ts)
+        # print(Dt.shape)
         self.K = jnp.multiply(self.kernel(self.x, self.x), Dt)
         self.L = jnp.linalg.inv(self.K + (self.sigma_n**2 * jnp.eye(self.K.shape[0])))
 
@@ -83,12 +91,20 @@ class TVGPR():
         # print("COV DEBUG")
         # print(x_star)
         # print(self.x)
-        i_arr = jnp.arange(self.T) + 1
-        d_t = jnp.array(jnp.power((1-self.epsilon), ((self.T + 1 - i_arr)/2))).reshape(-1, 1)    
-        # print(d_t)
 
-        K_star2 = self.kernel(x_star, x_star)
-        K_star = jnp.multiply(self.kernel(x_star, self.x), d_t)
+        
+        if self.discrete:
+            # discrete time version (each observation is taken at equal timesteps)
+            i_arr = jnp.arange(self.T) + 1
+            d_t = jnp.array(jnp.power((1-self.epsilon), ((self.T + 1 - i_arr)/2))).reshape(-1, 1)    
+        else:
+            # continuous time version (each observation can be taken at any time)
+            d_t = jax.vmap(lambda i: jnp.power((1-self.epsilon), ((x_star[0] - i)/2)))(self.ts.reshape(-1, 1))
+
+        # print(d_t)
+        # remember, x_star[0] is the time of the query
+        K_star2 = self.kernel(x_star[1:], x_star[1:])
+        K_star = jnp.multiply(self.kernel(x_star[1:], self.x), d_t)
         # print(K)
         # print(K_star2)
         # print(K_star)

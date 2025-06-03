@@ -25,11 +25,33 @@ class GPR():
         return f_bar_star
     
     def variance(self, x_star : jax.Array):
+        # ORIGINAL VERSION
         _, cov_f_star = self.fit(x_star)
         return jnp.diag(cov_f_star)
+
+        # IMMRAX-FRENDLY VERSION (CURRENTLY 1D ONLY)
+        # cov = jnp.zeros((x_star.shape[0], 1))
+
+        # for s, xs in enumerate(x_star):
+        #     ca = 0
+        #     for i in range(self.L.shape[0]):
+        #         for j in range(self.L.shape[1]):
+        #             S = jnp.dot(self.x[i, :],self.x[i, :]) + jnp.dot(self.x[j, :],self.x[j, :]) - jnp.dot(2*(self.x[i, :]+self.x[j, :]-xs),xs)
+        #             ca += self.L[i, j] * jnp.exp(-S/(2*(self.l**2)))
+        #             # * jnp.exp(-(jnp.dot(self.x[i, :],self.x[i, :]))/(2*(self.l**2))) * \
+        #             #         jnp.exp(-jnp.dot(self.x[j, :],self.x[j, :])/(2*(self.l**2))) * \
+        #             #         jnp.exp(-jnp.dot((self.x[i, :]+self.x[j, :]),xs)/((self.l**2)))
+        #             # print(ca[0])
+        #     # cov = cov.at[s].set(jnp.exp(-jnp.dot(xs, xs)/(self.l**2)) * ca)
+        #     cov = cov.at[s].set(ca)
+            
+        # cov_f_star = self.sigma_f - (self.sigma_f**2 * jnp.diag(cov))
+        # return jnp.diag(cov_f_star)
+    
     
     def std_dev(self, x_star : jax.Array): 
-        return jnp.sqrt(jnp.maximum(self.variance(x_star), 0.0))
+        # return jnp.sqrt(jnp.maximum(self.variance(x_star), 0.0))
+        return jnp.sqrt(self.variance(x_star))
     
     def add_obs(self, obs : jax.Array):
         self.x = jnp.vstack((self.x, obs[:, :self.obs_dim]))
@@ -115,6 +137,7 @@ class GPR():
         cov_f_star = K_star2 - jnp.dot(K_star.T, self.L).dot(K_star)
         # print(cov_f_star.shape)
 
+        
         # CHOLESKY DECOMP VERSION
         # L = jnp.linalg.cholesky(K + (sigma_n**2 * jnp.eye(K.shape[0])))
         # print(L)
@@ -127,3 +150,5 @@ class GPR():
         # cov_f_star = K_star2 - jnp.dot(v, v.T)
 
         return f_bar_star, cov_f_star
+    
+
