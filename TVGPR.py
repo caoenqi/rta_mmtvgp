@@ -29,11 +29,11 @@ class TVGPR():
 
     def mean(self, x_star : jax.Array):
         f_bar_star, _ = self.fit(x_star)
-        return f_bar_star
+        return f_bar_star.reshape(-1)
     
     def variance(self, x_star : jax.Array):
         _, cov_f_star = self.fit(x_star)
-        return jnp.diag(cov_f_star)
+        return cov_f_star[jnp.diag_indices(cov_f_star.shape[0])]
     
     def std_dev(self, x_star : jax.Array): 
         return jnp.sqrt(self.variance(x_star))
@@ -99,12 +99,24 @@ class TVGPR():
             d_t = jnp.array(jnp.power((1-self.epsilon), ((self.T + 1 - i_arr)/2))).reshape(-1, 1)    
         else:
             # continuous time version (each observation can be taken at any time)
-            d_t = jax.vmap(lambda i: jnp.power((1-self.epsilon), ((x_star[0] - i)/2)))(self.ts.reshape(-1, 1))
+            # jax.debug.print('{s}', s=self.ts)
+            d_t = jax.vmap(lambda i: jnp.power((1-self.epsilon), ((x_star[0] - i)/2)))(self.ts).reshape(-1, 1)
+            # jax.debug.print('{s}', s=d_t) 
+            # jax.debug.print('{s}', s=d_t.shape)
+            # d_t = d_t.reshape(-1, 1)
 
         # print(d_t)
         # remember, x_star[0] is the time of the query
         K_star2 = self.kernel(x_star[1:], x_star[1:])
-        K_star = jnp.multiply(self.kernel(x_star[1:], self.x), d_t)
+        # print("kernel shapes")
+        # print("kernel:", self.kernel(x_star[1:], self.x).shape, self.kernel(self.x, self.x).ndim)
+        # print("d_t:", d_t.shape, d_t.ndim)
+        # jax.debug.print('{s}', s=d_t.shape)
+        # K_star = jnp.multiply(self.kernel(x_star[1:], self.x), d_t)
+        K_star = self.kernel(x_star[1:], self.x) * d_t
+        # K_star = self.kernel(x_star[1:], self.x)
+        # print(d_t.shape)
+        # K_star = d_t.reshape(-1, 1)
         # print(K)
         # print(K_star2)
         # print(K_star)
